@@ -1,0 +1,1761 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Piano MIDI Progression Builder (Vanilla)</title>
+  <style>
+    :root{
+      --bg:#0b0f14;
+      --panel:#101826;
+      --panel2:#0f1520;
+      --text:#e8eef7;
+      --muted:#9ab0c7;
+      --line:rgba(255,255,255,.08);
+      --accent:#6ee7ff;
+      --accent2:#a78bfa;
+      --good:#34d399;
+      --warn:#fbbf24;
+      --bad:#fb7185;
+
+      --radius:16px;
+      --shadow: 0 16px 40px rgba(0,0,0,.35);
+      --pad:14px;
+      --tap:48px;
+      --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      --sans: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji","Segoe UI Emoji";
+    }
+
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{
+      margin:0;
+      font-family:var(--sans);
+      background:
+        radial-gradient(1200px 700px at 20% 5%, rgba(110,231,255,.10), transparent 55%),
+        radial-gradient(1100px 650px at 90% 15%, rgba(167,139,250,.12), transparent 55%),
+        radial-gradient(900px 600px at 50% 90%, rgba(52,211,153,.07), transparent 60%),
+        linear-gradient(180deg, #070a10, #0b0f14 30%, #070a10);
+      color:var(--text);
+    }
+
+    header{
+      padding:18px 16px 10px;
+      position:sticky; top:0;
+      backdrop-filter: blur(10px);
+      background: linear-gradient(180deg, rgba(11,15,20,.88), rgba(11,15,20,.55));
+      border-bottom:1px solid var(--line);
+      z-index:20;
+    }
+    .topbar{
+      max-width:1100px;
+      margin:0 auto;
+      display:flex;
+      gap:12px;
+      align-items:center;
+      justify-content:space-between;
+      flex-wrap:wrap;
+    }
+    .brand{
+      display:flex; align-items:center; gap:10px; min-width:260px;
+    }
+    .logo{
+      width:38px; height:38px;
+      border-radius:12px;
+      background:
+        radial-gradient(circle at 30% 30%, rgba(110,231,255,.85), transparent 55%),
+        radial-gradient(circle at 70% 70%, rgba(167,139,250,.85), transparent 55%),
+        linear-gradient(135deg, rgba(255,255,255,.12), rgba(255,255,255,.02));
+      border:1px solid rgba(255,255,255,.12);
+      box-shadow: 0 12px 25px rgba(0,0,0,.35);
+      position:relative;
+      overflow:hidden;
+    }
+    .logo:before{
+      content:"";
+      position:absolute; inset:-20%;
+      background: repeating-linear-gradient(
+        90deg,
+        rgba(255,255,255,.10),
+        rgba(255,255,255,.10) 2px,
+        transparent 2px,
+        transparent 8px
+      );
+      transform:rotate(-12deg);
+      opacity:.35;
+    }
+    .title h1{
+      margin:0;
+      font-size:16px;
+      letter-spacing:.3px;
+      line-height:1.1;
+    }
+    .title p{
+      margin:2px 0 0;
+      font-size:12px;
+      color:var(--muted);
+    }
+
+    main{
+      max-width:1100px;
+      margin:0 auto;
+      padding:14px 16px 30px;
+      display:grid;
+      gap:14px;
+      grid-template-columns: 1fr;
+    }
+    @media (min-width: 980px){
+      main{
+        grid-template-columns: 420px 1fr;
+        align-items:start;
+      }
+    }
+
+    .panel{
+      background: linear-gradient(180deg, rgba(255,255,255,.03), rgba(255,255,255,.01));
+      border:1px solid var(--line);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      overflow:hidden;
+    }
+    .panel .hd{
+      padding:12px 14px;
+      border-bottom:1px solid var(--line);
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:10px;
+      background: linear-gradient(180deg, rgba(255,255,255,.05), rgba(255,255,255,.01));
+    }
+    .panel .hd .k{
+      display:flex;
+      align-items:center;
+      gap:10px;
+    }
+    .badge{
+      font-family:var(--mono);
+      font-size:11px;
+      padding:3px 8px;
+      border-radius:999px;
+      border:1px solid rgba(255,255,255,.12);
+      color:var(--muted);
+      background: rgba(0,0,0,.18);
+      white-space:nowrap;
+    }
+    .panel .bd{ padding: 12px 14px; }
+
+    .grid{
+      display:grid;
+      grid-template-columns: 1fr;
+      gap:10px;
+    }
+    @media (min-width: 520px){
+      .grid.two{ grid-template-columns: 1fr 1fr; }
+      .grid.three{ grid-template-columns: 1fr 1fr 1fr; }
+    }
+
+    label{
+      display:block;
+      font-size:12px;
+      color:var(--muted);
+      margin:0 0 6px;
+      letter-spacing:.2px;
+    }
+    select,input[type="number"]{
+      width:100%;
+      height: var(--tap);
+      padding: 10px 12px;
+      border-radius: 12px;
+      border:1px solid rgba(255,255,255,.12);
+      background: rgba(4,8,12,.65);
+      color: var(--text);
+      outline:none;
+      font-size:14px;
+    }
+    input[type="number"]{ font-variant-numeric: tabular-nums; }
+    select:focus,input:focus{ border-color: rgba(110,231,255,.55); box-shadow: 0 0 0 4px rgba(110,231,255,.10); }
+
+    .row{
+      display:flex;
+      gap:10px;
+      flex-wrap:wrap;
+      align-items:center;
+    }
+
+    .btn{
+      min-height: var(--tap);
+      padding: 10px 14px;
+      border-radius: 14px;
+      border:1px solid rgba(255,255,255,.12);
+      background: rgba(255,255,255,.04);
+      color:var(--text);
+      cursor:pointer;
+      font-weight:600;
+      letter-spacing:.2px;
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      gap:8px;
+      user-select:none;
+      transition: transform .04s ease, background .12s ease, border-color .12s ease;
+      touch-action: manipulation;
+    }
+    .btn:active{ transform: translateY(1px); }
+    .btn.primary{
+      background: linear-gradient(135deg, rgba(110,231,255,.22), rgba(167,139,250,.20));
+      border-color: rgba(110,231,255,.35);
+    }
+    .btn.good{
+      background: linear-gradient(135deg, rgba(52,211,153,.18), rgba(110,231,255,.12));
+      border-color: rgba(52,211,153,.35);
+    }
+    .btn.warn{
+      background: linear-gradient(135deg, rgba(251,191,36,.18), rgba(167,139,250,.10));
+      border-color: rgba(251,191,36,.35);
+    }
+    .btn.ghost{
+      background: transparent;
+    }
+    .btn:disabled{
+      opacity:.55;
+      cursor:not-allowed;
+    }
+
+    .toggle{
+      display:flex;
+      align-items:center;
+      gap:10px;
+      padding:10px 12px;
+      border-radius: 14px;
+      border:1px solid rgba(255,255,255,.10);
+      background: rgba(0,0,0,.18);
+      min-height: var(--tap);
+      flex: 1 1 160px;
+    }
+    .toggle input{ width:18px; height:18px; }
+    .toggle strong{ font-size:13px; }
+    .toggle span{ font-size:12px; color:var(--muted); display:block; margin-top:1px; }
+
+    .scaleBox{
+      padding:10px 12px;
+      border-radius: 14px;
+      background: rgba(0,0,0,.22);
+      border:1px dashed rgba(255,255,255,.14);
+      display:flex;
+      gap:8px;
+      flex-wrap:wrap;
+      align-items:center;
+    }
+    .chip{
+      font-family: var(--mono);
+      font-size:12px;
+      padding:6px 10px;
+      border-radius:999px;
+      border:1px solid rgba(255,255,255,.12);
+      background: rgba(255,255,255,.03);
+      white-space:nowrap;
+    }
+    .chip.accent{
+      border-color: rgba(110,231,255,.35);
+      background: rgba(110,231,255,.08);
+    }
+    .chip.borrowed{
+      border-color: rgba(251,191,36,.38);
+      background: rgba(251,191,36,.10);
+    }
+
+    .progression{
+      display:grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap:10px;
+    }
+    @media (max-width: 560px){
+      .progression{ grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
+    .barCard{
+      border:1px solid rgba(255,255,255,.10);
+      background: rgba(0,0,0,.18);
+      border-radius: 16px;
+      padding:10px 10px 9px;
+      min-height: 92px;
+      cursor:pointer;
+      display:flex;
+      flex-direction:column;
+      justify-content:space-between;
+      gap:6px;
+      transition: border-color .12s ease, background .12s ease, transform .05s ease;
+      touch-action: manipulation;
+    }
+    .barCard:hover{ border-color: rgba(110,231,255,.28); }
+    .barCard:active{ transform: translateY(1px); }
+    .barTop{
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+    }
+    .barNum{
+      font-family:var(--mono);
+      font-size:11px;
+      color:var(--muted);
+    }
+    .roman{
+      font-family:var(--mono);
+      font-size:12px;
+      padding:4px 8px;
+      border-radius:999px;
+      background: rgba(255,255,255,.04);
+      border:1px solid rgba(255,255,255,.10);
+    }
+    .chordName{
+      font-size:14px;
+      font-weight:700;
+      letter-spacing:.2px;
+      line-height:1.15;
+    }
+    .chordSub{
+      font-size:12px;
+      color:var(--muted);
+      display:flex;
+      gap:8px;
+      align-items:center;
+      flex-wrap:wrap;
+      min-height:18px;
+    }
+    .tiny{
+      font-family:var(--mono);
+      font-size:11px;
+      padding:3px 7px;
+      border-radius:999px;
+      border:1px solid rgba(255,255,255,.10);
+      background: rgba(0,0,0,.18);
+      color:var(--muted);
+    }
+    .tiny.good{ border-color: rgba(52,211,153,.35); color:#baf7df; background: rgba(52,211,153,.08); }
+    .tiny.warn{ border-color: rgba(251,191,36,.35); color:#ffe7a3; background: rgba(251,191,36,.08); }
+
+    .status{
+      margin-top:10px;
+      padding:10px 12px;
+      border-radius: 14px;
+      border:1px solid rgba(255,255,255,.10);
+      background: rgba(0,0,0,.18);
+      color:var(--muted);
+      font-size:12px;
+      line-height:1.35;
+    }
+    .status b{ color:var(--text); }
+
+    .modalWrap{
+      position:fixed;
+      inset:0;
+      background: rgba(0,0,0,.62);
+      display:none;
+      align-items:center;
+      justify-content:center;
+      padding:16px;
+      z-index:50;
+    }
+    .modal{
+      width:min(560px, 100%);
+      background: linear-gradient(180deg, rgba(255,255,255,.05), rgba(255,255,255,.02));
+      border:1px solid rgba(255,255,255,.12);
+      border-radius: 18px;
+      box-shadow: var(--shadow);
+      overflow:hidden;
+    }
+    .modal .mhd{
+      padding:12px 14px;
+      border-bottom:1px solid rgba(255,255,255,.10);
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:10px;
+    }
+    .modal .mhd h3{
+      margin:0;
+      font-size:14px;
+      letter-spacing:.2px;
+    }
+    .modal .mbd{ padding:12px 14px; }
+    .degreeGrid{
+      display:grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap:10px;
+    }
+    @media (min-width: 520px){
+      .degreeGrid{ grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    }
+    .degBtn{
+      min-height: 54px;
+      border-radius: 16px;
+      border:1px solid rgba(255,255,255,.10);
+      background: rgba(0,0,0,.18);
+      padding:10px 10px;
+      cursor:pointer;
+      text-align:left;
+      display:flex;
+      flex-direction:column;
+      justify-content:center;
+      gap:3px;
+      transition: border-color .12s ease, transform .05s ease;
+      user-select:none;
+      touch-action: manipulation;
+    }
+    .degBtn:hover{ border-color: rgba(110,231,255,.28); }
+    .degBtn:active{ transform: translateY(1px); }
+    .degBtn .r{ font-family:var(--mono); font-size:12px; color:var(--muted); }
+    .degBtn .n{ font-size:13px; font-weight:800; letter-spacing:.2px; }
+    .degBtn.borrowed{ border-color: rgba(251,191,36,.30); }
+    .degBtn.borrowed:hover{ border-color: rgba(251,191,36,.50); }
+
+    .hint{
+      font-size:12px;
+      color:var(--muted);
+      line-height:1.4;
+      margin-top:8px;
+    }
+    .divider{
+      height:1px;
+      background: rgba(255,255,255,.08);
+      margin:10px 0;
+    }
+  </style>
+</head>
+<body>
+<header>
+  <div class="topbar">
+    <div class="brand">
+      <div class="logo" aria-hidden="true"></div>
+      <div class="title">
+        <h1>Piano MIDI Progression Builder</h1>
+        <p>Key + scale → diatonic chords → MIDI export + WebAudio preview</p>
+      </div>
+    </div>
+    <div class="row">
+      <button id="btnPreview" class="btn good" type="button">▶ Preview</button>
+      <button id="btnStop" class="btn ghost" type="button" disabled>■ Stop</button>
+      <button id="btnExport" class="btn primary" type="button">⬇ Export .mid</button>
+    </div>
+  </div>
+</header>
+
+<main>
+  <section class="panel" aria-label="Settings">
+    <div class="hd">
+      <div class="k">
+        <strong>Setup</strong>
+        <span class="badge">Studio Panel</span>
+      </div>
+      <span class="badge" id="badgeScale">—</span>
+    </div>
+    <div class="bd">
+      <div class="grid two">
+        <div>
+          <label for="selKey">Key</label>
+          <select id="selKey">
+            <option>C</option>
+            <option>C#</option>
+            <option>D</option>
+            <option>Eb</option>
+            <option>E</option>
+            <option>F</option>
+            <option>F#</option>
+            <option>G</option>
+            <option>Ab</option>
+            <option>A</option>
+            <option>Bb</option>
+            <option>B</option>
+          </select>
+        </div>
+        <div>
+          <label for="selScale">Scale type</label>
+          <select id="selScale">
+            <option value="major">Major</option>
+            <option value="natural_minor">Natural minor</option>
+            <option value="harmonic_minor">Harmonic minor</option>
+            <option value="melodic_minor">Melodic minor</option>
+          </select>
+        </div>
+      </div>
+
+      <div style="margin-top:10px">
+        <label>Scale notes</label>
+        <div class="scaleBox" id="scaleNotes"></div>
+      </div>
+
+      <div class="divider"></div>
+
+      <div class="grid three">
+        <div>
+          <label for="selLen">Progression length</label>
+          <select id="selLen">
+            <option value="4">4 bars</option>
+            <option value="8" selected>8 bars</option>
+            <option value="16">16 bars</option>
+          </select>
+        </div>
+        <div>
+          <label for="selTS">Time signature</label>
+          <select id="selTS">
+            <option value="4/4" selected>4/4</option>
+            <option value="3/4">3/4</option>
+            <option value="6/8">6/8</option>
+          </select>
+        </div>
+        <div>
+          <label for="numBpm">BPM</label>
+          <input id="numBpm" type="number" min="40" max="240" value="100" />
+        </div>
+      </div>
+
+      <div class="grid two" style="margin-top:10px">
+        <div>
+          <label for="selChordStyle">Chord style</label>
+          <select id="selChordStyle">
+            <option value="triad" selected>Triads</option>
+            <option value="7th">7th chords</option>
+            <option value="pop">Simple pop (triads + occasional sus2/sus4)</option>
+          </select>
+        </div>
+        <div>
+          <label for="selRhythm">Rhythm pattern</label>
+          <select id="selRhythm">
+            <option value="block" selected>Block (whole note)</option>
+            <option value="comp">Basic comp (quarters / dotted quarters)</option>
+            <option value="arp">Arpeggio (8ths)</option>
+            <option value="broken">Broken chord (1 5 3 5)</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="grid two" style="margin-top:10px">
+        <div>
+          <label for="selInv">Inversions</label>
+          <select id="selInv">
+            <option value="off" selected>Off</option>
+            <option value="low">Low</option>
+            <option value="mid">Medium</option>
+            <option value="high">High</option>
+          </select>
+        </div>
+        <div>
+          <label for="selVoice">Voice leading</label>
+          <select id="selVoice">
+            <option value="none">None</option>
+            <option value="smooth" selected>Smoothest movement</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="grid two" style="margin-top:10px">
+        <div>
+          <label for="selVel">Velocity</label>
+          <select id="selVel">
+            <option value="soft">Soft</option>
+            <option value="med" selected>Medium</option>
+            <option value="hard">Hard</option>
+          </select>
+        </div>
+        <div class="row">
+          <div class="toggle" style="flex:1">
+            <input id="chkHuman" type="checkbox" />
+            <div>
+              <strong>Humanize</strong>
+              <span>Small timing + velocity jitter</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="grid two" style="margin-top:10px">
+        <div>
+          <label for="selBass">Left hand bass</label>
+          <select id="selBass">
+            <option value="off" selected>Off</option>
+            <option value="root">Root</option>
+            <option value="root5">Root–5 pattern</option>
+          </select>
+        </div>
+        <div class="row">
+          <div class="toggle" style="flex:1">
+            <input id="chkBorrowed" type="checkbox" />
+            <div>
+              <strong>Borrowed chords</strong>
+              <span>Allow common modal interchange options</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="grid two" style="margin-top:10px">
+        <div>
+          <label for="selPreviewRange">Preview octave/range</label>
+          <select id="selPreviewRange">
+            <option value="bass">Bass (low)</option>
+            <option value="mid" selected>Middle C</option>
+            <option value="high">High (bright)</option>
+          </select>
+        </div>
+        <div class="toggle" style="flex:1; align-self:end">
+          <input id="chkLoop" type="checkbox" checked />
+          <div>
+            <strong>Loop preview</strong>
+            <span>Repeat the progression</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="divider"></div>
+
+      <div class="grid two">
+        <div>
+          <label for="selTemplate">Templates</label>
+          <select id="selTemplate"></select>
+        </div>
+        <div class="row" style="align-items:end">
+          <button id="btnApplyTemplate" class="btn warn" type="button" style="flex:1">Apply template</button>
+          <button id="btnRandomize" class="btn" type="button" style="flex:1">Randomize</button>
+        </div>
+      </div>
+
+      <div class="status" id="status">
+        <b>Tip:</b> Tap a bar on the right to edit its chord degree. Borrowed chords (if enabled) are labeled and exported too.
+      </div>
+    </div>
+  </section>
+
+  <section class="panel" aria-label="Progression">
+    <div class="hd">
+      <div class="k">
+        <strong>Progression</strong>
+        <span class="badge" id="badgeProg">8 bars</span>
+      </div>
+      <span class="badge" id="badgeMidi">PPQ 480 · Type 0</span>
+    </div>
+    <div class="bd">
+      <div class="progression" id="progGrid"></div>
+      <div class="hint">
+        Each bar is a chord. Export writes a standard .mid (single track named <span class="chip accent">Piano</span>).
+        Preview uses Web Audio (simple synth envelope).
+      </div>
+    </div>
+  </section>
+</main>
+
+<div class="modalWrap" id="modalWrap" role="dialog" aria-modal="true" aria-hidden="true">
+  <div class="modal">
+    <div class="mhd">
+      <h3 id="modalTitle">Edit Bar</h3>
+      <button class="btn ghost" id="btnCloseModal" type="button">✕</button>
+    </div>
+    <div class="mbd">
+      <div class="row" style="margin-bottom:10px">
+        <span class="badge" id="modalBarInfo">—</span>
+        <span class="badge" id="modalKeyInfo">—</span>
+      </div>
+      <div class="degreeGrid" id="degreeGrid"></div>
+      <div class="hint" id="borrowHint"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+(() => {
+  // -------------------------
+  // Music theory helpers (spelling)
+  // -------------------------
+  const LETTER_PC = { C:0, D:2, E:4, F:5, G:7, A:9, B:11 };
+  const LETTERS = ["C","D","E","F","G","A","B"];
+
+  function parseNoteName(name){
+    const m = /^([A-G])([#bx]{1,2}|b{1,2})?$/.exec(name.trim());
+    if(!m) return null;
+    const L = m[1];
+    const acc = m[2] || "";
+    let off = 0;
+    if(acc === "#") off = 1;
+    else if(acc === "x" || acc === "##") off = 2;
+    else if(acc === "b") off = -1;
+    else if(acc === "bb") off = -2;
+    const pc = (LETTER_PC[L] + off + 120) % 12;
+    return { letter:L, acc, pc };
+  }
+
+  function accFromDiff(diff){
+    if(diff === 0) return "";
+    if(diff === 1) return "#";
+    if(diff === 2) return "x";
+    if(diff === -1) return "b";
+    if(diff === -2) return "bb";
+    if(diff > 2) return "x";
+    if(diff < -2) return "bb";
+    return "";
+  }
+
+  function getScaleIntervals(scaleType){
+    switch(scaleType){
+      case "major": return [0,2,4,5,7,9,11];
+      case "natural_minor": return [0,2,3,5,7,8,10];
+      case "harmonic_minor": return [0,2,3,5,7,8,11];
+      case "melodic_minor": return [0,2,3,5,7,9,11];
+      default: return [0,2,4,5,7,9,11];
+    }
+  }
+
+  function buildScaleSpelling(keyName, scaleType){
+    const root = parseNoteName(keyName);
+    if(!root) throw new Error("Bad key");
+    const intervals = getScaleIntervals(scaleType);
+    const rootIdx = LETTERS.indexOf(root.letter);
+    const notes = [];
+    const pcs = [];
+    for(let i=0;i<7;i++){
+      const letter = LETTERS[(rootIdx + i) % 7];
+      const desired = (root.pc + intervals[i]) % 12;
+      const natural = LETTER_PC[letter];
+      let diff = (desired - natural + 12) % 12;
+      if(diff > 6) diff -= 12;
+      if(diff > 2) diff -= 12;
+      if(diff < -2) diff += 12;
+      if(diff > 2) diff = 2;
+      if(diff < -2) diff = -2;
+      const name = letter + accFromDiff(diff);
+      notes.push(name);
+      pcs.push(desired);
+    }
+    return { notes, pcs, root };
+  }
+
+  function chordQualityFromIntervals(third, fifth){
+    if(third === 4 && fifth === 7) return "maj";
+    if(third === 3 && fifth === 7) return "min";
+    if(third === 3 && fifth === 6) return "dim";
+    if(third === 4 && fifth === 8) return "aug";
+    return "unk";
+  }
+
+  function romanForDegree(deg, qualityHint){
+    const base = ["I","II","III","IV","V","VI","VII"][deg-1] || "I";
+    let r = base;
+    if(qualityHint === "min") r = base.toLowerCase();
+    if(qualityHint === "dim") r = base.toLowerCase() + "°";
+    if(qualityHint === "aug") r = base + "+";
+    return r;
+  }
+
+  function chordNameFromQuality(rootName, quality, seventh=null, extras=null){
+    let name = rootName;
+    if(extras && extras.sus){
+      name += extras.sus;
+      return name;
+    }
+    if(quality === "min") name += "m";
+    else if(quality === "dim") name += "dim";
+    else if(quality === "aug") name += "aug";
+    if(seventh){
+      name += seventh;
+    }
+    return name;
+  }
+
+  function buildDiatonicChord(scale, deg, style){
+    const i0 = (deg-1) % 7;
+    const i2 = (deg+1) % 7;
+    const i4 = (deg+3) % 7;
+    const i6 = (deg+5) % 7;
+
+    const rootPc = scale.pcs[i0];
+    const thirdPc = scale.pcs[i2];
+    const fifthPc = scale.pcs[i4];
+    const seventhPc = scale.pcs[i6];
+
+    const third = (thirdPc - rootPc + 12) % 12;
+    const fifth = (fifthPc - rootPc + 12) % 12;
+    const seventh = (seventhPc - rootPc + 12) % 12;
+
+    const triadQ = chordQualityFromIntervals(third, fifth);
+
+    let roman = romanForDegree(deg, triadQ);
+    let name = chordNameFromQuality(scale.notes[i0], triadQ);
+    let pcs = [rootPc, thirdPc, fifthPc];
+    let label = "Diatonic";
+
+    if(style === "7th"){
+      let ext = "";
+      if(triadQ === "maj" && seventh === 11) ext = "maj7";
+      else if(triadQ === "maj" && seventh === 10) ext = "7";
+      else if(triadQ === "min" && seventh === 10) ext = "m7";
+      else if(triadQ === "dim" && seventh === 10) ext = "m7b5";
+      else if(triadQ === "dim" && seventh === 9) ext = "dim7";
+      else if(triadQ === "aug" && seventh === 10) ext = "7#5";
+      else ext = "7";
+      name = chordNameFromQuality(scale.notes[i0], triadQ, ext);
+      pcs = [rootPc, thirdPc, fifthPc, seventhPc];
+      roman = roman + "7";
+    }
+
+    return { deg, roman, name, pcs, triadQ, label, borrowed:false, extras:null };
+  }
+
+  function buildBorrowedOptions(keyName, scaleType){
+    const isMajor = (scaleType === "major");
+    const opts = [];
+    const parallelType = isMajor ? "natural_minor" : "major";
+    const parallel = buildScaleSpelling(keyName, parallelType);
+
+    function makeBorrowed(deg){
+      const chord = buildDiatonicChord(parallel, deg, "triad");
+      chord.borrowed = true;
+      chord.label = "Modal interchange";
+      return chord;
+    }
+
+    if(isMajor){
+      opts.push(Object.assign(makeBorrowed(3), { roman:"♭III", label:"Borrowed (♭III from minor)" }));
+      opts.push(Object.assign(makeBorrowed(6), { roman:"♭VI", label:"Borrowed (♭VI from minor)" }));
+      opts.push(Object.assign(makeBorrowed(7), { roman:"♭VII", label:"Borrowed (♭VII from minor)" }));
+      const iv = makeBorrowed(4);
+      iv.roman = "iv";
+      iv.label = "Borrowed (iv from minor)";
+      opts.push(iv);
+    } else {
+      const maj = buildScaleSpelling(keyName, "major");
+      const III = buildDiatonicChord(maj, 3, "triad");
+      III.borrowed = true; III.roman = "III"; III.label = "Borrowed (III from major)";
+      const VI = buildDiatonicChord(maj, 6, "triad");
+      VI.borrowed = true; VI.roman = "VI"; VI.label = "Borrowed (VI from major)";
+      const VII = buildDiatonicChord(maj, 7, "triad");
+      VII.borrowed = true; VII.roman = "VII"; VII.label = "Borrowed (VII from major)";
+      opts.push(III, VI, VII);
+    }
+
+    const seen = new Set();
+    const out = [];
+    for(const c of opts){
+      const sig = c.pcs.map(x=>x%12).sort((a,b)=>a-b).join(",");
+      if(seen.has(sig)) continue;
+      seen.add(sig);
+      out.push(c);
+    }
+    return out;
+  }
+
+  // -------------------------
+  // MIDI writer (Type 0, single track)
+  // -------------------------
+  const PPQ = 480;
+  const u32 = (n)=>[(n>>>24)&255,(n>>>16)&255,(n>>>8)&255,n&255];
+  const u16 = (n)=>[(n>>>8)&255,n&255];
+
+  function writeVarLen(value){
+    let buffer = value & 0x7F;
+    const out = [];
+    while((value >>= 7)){
+      buffer <<= 8;
+      buffer |= ((value & 0x7F) | 0x80);
+    }
+    while(true){
+      out.push(buffer & 0xFF);
+      if(buffer & 0x80) buffer >>= 8;
+      else break;
+    }
+    return out;
+  }
+  function strBytes(s){
+    const out = [];
+    for(let i=0;i<s.length;i++) out.push(s.charCodeAt(i) & 255);
+    return out;
+  }
+
+  function buildMidiFile({ bpm, timeSig, events }){
+    const [num, den] = timeSig.split("/").map(x=>parseInt(x,10));
+    const denPow = Math.log2(den) | 0;
+
+    const track = [];
+    track.push(...writeVarLen(0), 0xFF, 0x03, ...writeVarLen(5), ...strBytes("Piano"));
+
+    const mpq = Math.round(60000000 / Math.max(1, bpm));
+    track.push(...writeVarLen(0), 0xFF, 0x51, 0x03, (mpq>>>16)&255, (mpq>>>8)&255, mpq&255);
+
+    track.push(...writeVarLen(0), 0xFF, 0x58, 0x04, num & 255, denPow & 255, 24, 8);
+
+    const sorted = events.slice().sort((a,b) => {
+      if(a.tick !== b.tick) return a.tick - b.tick;
+      const prA = (a.type === "off") ? 0 : (a.type === "meta" ? 1 : 2);
+      const prB = (b.type === "off") ? 0 : (b.type === "meta" ? 1 : 2);
+      return prA - prB;
+    });
+
+    let lastTick = 0;
+    for(const ev of sorted){
+      const tick = Math.max(0, Math.floor(ev.tick));
+      const delta = tick - lastTick;
+      lastTick = tick;
+      track.push(...writeVarLen(delta));
+
+      if(ev.type === "on"){
+        track.push(0x90, ev.note & 127, ev.vel & 127);
+      } else if(ev.type === "off"){
+        track.push(0x80, ev.note & 127, 0);
+      }
+    }
+    track.push(...writeVarLen(0), 0xFF, 0x2F, 0x00);
+
+    const header = [];
+    header.push(...strBytes("MThd"), ...u32(6), ...u16(0), ...u16(1), ...u16(PPQ));
+    const trk = [];
+    trk.push(...strBytes("MTrk"), ...u32(track.length), ...track);
+
+    return new Uint8Array([...header, ...trk]);
+  }
+
+  // -------------------------
+  // Voicing + scheduling
+  // -------------------------
+  function midiNoteFromPcNear(pc, target){
+    const baseOct = Math.floor(target/12);
+    let best = null;
+    for(let o=baseOct-2;o<=baseOct+2;o++){
+      const n = o*12 + pc;
+      if(n<0 || n>127) continue;
+      const d = Math.abs(n - target);
+      if(best === null || d < best.d) best = { n, d };
+    }
+    return best ? best.n : target;
+  }
+  const clamp = (n,a,b)=>Math.max(a, Math.min(b,n));
+
+  function buildVoicingCandidates(pcs, invPref, previewOffsetSemis){
+    const invCenter = (invPref === "low") ? 48 : (invPref === "high" ? 60 : 54);
+    const targetCenter = invCenter + (previewOffsetSemis || 0);
+
+    const rangeMin = 36 + (previewOffsetSemis || 0);
+    const rangeMax = 72 + (previewOffsetSemis || 0);
+
+    let base = [];
+    let curTarget = targetCenter;
+    for(let i=0;i<pcs.length;i++){
+      const pc = pcs[i];
+      let n = midiNoteFromPcNear(pc, curTarget);
+      while(base.length && n <= base[base.length-1]) n += 12;
+      base.push(n);
+      curTarget = n + 4;
+    }
+
+    const candidates = [];
+    candidates.push(base.slice());
+    const maxInv = pcs.length - 1;
+    let v = base.slice();
+    for(let k=1;k<=maxInv;k++){
+      v = v.slice();
+      v[0] += 12;
+      v.sort((a,b)=>a-b);
+      candidates.push(v);
+    }
+
+    const expanded = [];
+    for(const cand of candidates){
+      for(const shift of [-24,-12,0,12,24]){
+        const vv = cand.map(n=>n+shift);
+        const mn = Math.min(...vv), mx = Math.max(...vv);
+        if(mn >= rangeMin && mx <= rangeMax) expanded.push(vv);
+      }
+    }
+    const seen = new Set();
+    const out = [];
+    for(const c of expanded){
+      const sig = c.join(",");
+      if(seen.has(sig)) continue;
+      seen.add(sig);
+      out.push(c);
+    }
+    return out.length ? out : candidates;
+  }
+
+  function voicingCost(a, b){
+    const aa = a.slice().sort((x,y)=>x-y);
+    const bb = b.slice().sort((x,y)=>x-y);
+    let cost = 0;
+    for(let i=0;i<Math.min(aa.length, bb.length);i++) cost += Math.abs(aa[i]-bb[i]);
+    cost += Math.abs(aa.length - bb.length) * 12;
+    return cost;
+  }
+
+  function pickBestVoicing(pcs, invPref, prevNotes, smooth, previewOffsetSemis){
+    const candidates = buildVoicingCandidates(pcs, invPref, previewOffsetSemis);
+    if(!smooth || !prevNotes || !prevNotes.length) return candidates[0];
+    let best = null;
+    for(const c of candidates){
+      const cost = voicingCost(c, prevNotes);
+      if(best === null || cost < best.cost) best = { c, cost };
+    }
+    return best ? best.c : candidates[0];
+  }
+
+  function beatsPerBar(timeSig){
+    const [num, den] = timeSig.split("/").map(n=>parseInt(n,10));
+    if(den === 8) return num;
+    return num;
+  }
+  function ticksPerBeat(timeSig){
+    const den = parseInt(timeSig.split("/")[1], 10);
+    return den === 8 ? (PPQ/2) : PPQ;
+  }
+  function barTicks(timeSig){
+    return beatsPerBar(timeSig) * ticksPerBeat(timeSig);
+  }
+  function baseVelocity(mode){
+    if(mode === "soft") return 58;
+    if(mode === "hard") return 102;
+    return 80;
+  }
+
+  function buildPlaybackEvents(state, options){
+    const {
+      keyName, scaleType, chordStyle, invPref, voicePref,
+      rhythm, velMode, humanize, bassMode,
+      progression, borrowedEnabled, timeSig, bpm
+    } = state;
+
+    const previewOffsetSemis = (options && options.previewOffsetSemis) || 0;
+    const scale = buildScaleSpelling(keyName, scaleType);
+    const diatonic = [];
+    for(let d=1; d<=7; d++){
+      diatonic.push(buildDiatonicChord(scale, d, chordStyle === "7th" ? "7th" : "triad"));
+    }
+    const borrowed = borrowedEnabled ? buildBorrowedOptions(keyName, scaleType) : [];
+    borrowed.forEach((c, idx) => c._id = `b${idx}_${c.roman}_${c.name}`);
+
+    const tpb = ticksPerBeat(timeSig);
+    const bt = barTicks(timeSig);
+    const beats = beatsPerBar(timeSig);
+    const isSixEight = timeSig === "6/8";
+    const compHits = isSixEight ? [0,3] : Array.from({length: beats}, (_,i)=>i);
+
+    const events = [];
+    let prevVoicing = null;
+
+    const velBase = baseVelocity(velMode);
+    const humanTick = humanize ? 8 : 0;
+    const humanVel = humanize ? 6 : 0;
+
+    function jitterTick(t){
+      if(!humanTick) return t;
+      const j = (Math.random()*2 - 1) * humanTick;
+      return Math.max(0, Math.round(t + j));
+    }
+    function jitterVel(v){
+      if(!humanVel) return v;
+      const j = (Math.random()*2 - 1) * humanVel;
+      return clamp(Math.round(v + j), 1, 127);
+    }
+
+    function scheduleChordBlock(t0, chordNotes, durTicks){
+      for(const n0 of chordNotes){
+        const n = clamp(n0 + previewOffsetSemis, 0, 127);
+        events.push({ tick: jitterTick(t0), type:"on", note:n, vel:jitterVel(velBase) });
+        events.push({ tick: jitterTick(t0 + durTicks), type:"off", note:n, vel:0 });
+      }
+    }
+
+    function scheduleBass(t0, rootPc, fifthPc, durTicks){
+      if(bassMode === "off") return;
+      const bassTarget = 36; // C2
+      const rootNote = midiNoteFromPcNear(rootPc, bassTarget) + previewOffsetSemis;
+      const fifthNote = midiNoteFromPcNear(fifthPc, bassTarget + 5) + previewOffsetSemis;
+      const v = jitterVel(Math.round(velBase * 0.82));
+
+      const add = (tt, nn, dur) => {
+        const n = clamp(nn-12,0,127);
+        events.push({ tick:jitterTick(tt), type:"on", note:n, vel:v });
+        events.push({ tick:jitterTick(tt + dur), type:"off", note:n, vel:0 });
+      };
+
+      if(rhythm === "block"){
+        add(t0, rootNote, durTicks);
+      } else if(rhythm === "comp"){
+        const dur = isSixEight ? (tpb*3 - 10) : (tpb - 10);
+        for(let i=0;i<compHits.length;i++){
+          const tt = t0 + compHits[i]*tpb;
+          const nn = (bassMode === "root5" && i%2===1) ? fifthNote : rootNote;
+          add(tt, nn, dur);
+        }
+      } else if(rhythm === "arp" || rhythm === "broken"){
+        const pulses = isSixEight ? [0,3] : [0,2];
+        const dur = isSixEight ? (tpb*3 - 10) : (tpb*2 - 10);
+        for(let i=0;i<pulses.length;i++){
+          const tt = t0 + pulses[i]*tpb;
+          const nn = (bassMode === "root5" && i%2===1) ? fifthNote : rootNote;
+          add(tt, nn, dur);
+        }
+      }
+    }
+
+    for(let b=0;b<progression.length;b++){
+      const slot = progression[b];
+      let chord = null;
+
+      if(slot.kind === "diatonic"){
+        chord = diatonic[slot.deg - 1];
+      } else if(slot.kind === "borrowed"){
+        chord = borrowed.find(x => x._id === slot.id) || borrowed[0] || diatonic[0];
+      } else chord = diatonic[0];
+
+      let pcs = chord.pcs.slice();
+      let extras = null;
+
+      if(chordStyle === "pop" && pcs.length === 3){
+        const r = Math.random();
+        if(slot.kind === "diatonic" && r < 0.22){
+          const susType = (r < 0.11) ? "sus2" : "sus4";
+          const deg0 = (slot.deg - 1);
+          const scalePcs = scale.pcs;
+          const rootPc = scalePcs[deg0];
+          const susPc = (susType === "sus2") ? scalePcs[(deg0 + 1) % 7] : scalePcs[(deg0 + 3) % 7];
+          pcs = [rootPc, susPc, scalePcs[(deg0 + 4) % 7]];
+          extras = { sus: susType };
+        }
+      }
+
+      const smooth = (voicePref === "smooth");
+      const voicing = pickBestVoicing(pcs, invPref, prevVoicing, smooth, previewOffsetSemis);
+      prevVoicing = voicing;
+
+      const t0 = b * bt;
+      const durBar = bt - 10;
+
+      if(rhythm === "block"){
+        scheduleChordBlock(t0, voicing, durBar);
+      } else if(rhythm === "comp"){
+        const dur = isSixEight ? (tpb*3 - 12) : (tpb - 12);
+        for(const h of compHits){
+          scheduleChordBlock(t0 + h*tpb, voicing, dur);
+        }
+      } else if(rhythm === "arp"){
+        const step = isSixEight ? tpb : Math.floor(tpb/2);
+        const stepsPerBar = isSixEight ? 6 : (beats * 2);
+        for(let s=0;s<stepsPerBar;s++){
+          const idx = s % voicing.length;
+          const note = clamp(voicing[idx] + previewOffsetSemis, 0, 127);
+          const start = t0 + s*step;
+          const dur = Math.max(60, step - 14);
+          events.push({ tick:jitterTick(start), type:"on", note, vel:jitterVel(Math.round(velBase*0.92)) });
+          events.push({ tick:jitterTick(start + dur), type:"off", note, vel:0 });
+        }
+      } else if(rhythm === "broken"){
+        const patternIdx = (voicing.length >= 3) ? [0,2,1,2] : [0,1,0,1];
+        const step = isSixEight ? tpb : tpb;
+        const stepsPerBar = isSixEight ? 6 : beats;
+        for(let s=0;s<stepsPerBar;s++){
+          const idx = patternIdx[s % patternIdx.length] % voicing.length;
+          const note = clamp(voicing[idx] + previewOffsetSemis, 0, 127);
+          const start = t0 + s*step;
+          const dur = Math.max(80, step - 16);
+          events.push({ tick:jitterTick(start), type:"on", note, vel:jitterVel(Math.round(velBase*0.88)) });
+          events.push({ tick:jitterTick(start + dur), type:"off", note, vel:0 });
+        }
+      }
+
+      const rootPc = pcs[0];
+      const fifthPc = pcs.length >= 3 ? pcs[2] : ((rootPc + 7) % 12);
+      scheduleBass(t0, rootPc, fifthPc, durBar);
+
+      slot._extras = extras;
+    }
+
+    events.push({ tick: progression.length * bt + 5, type:"meta" });
+    return events;
+  }
+
+  // -------------------------
+  // UI + State
+  // -------------------------
+  const el = (id)=>document.getElementById(id);
+
+  const ui = {
+    selKey: el("selKey"),
+    selScale: el("selScale"),
+    scaleNotes: el("scaleNotes"),
+    badgeScale: el("badgeScale"),
+
+    selLen: el("selLen"),
+    selTS: el("selTS"),
+    numBpm: el("numBpm"),
+
+    selChordStyle: el("selChordStyle"),
+    selInv: el("selInv"),
+    selVoice: el("selVoice"),
+    selRhythm: el("selRhythm"),
+
+    selVel: el("selVel"),
+    chkHuman: el("chkHuman"),
+
+    selBass: el("selBass"),
+    chkBorrowed: el("chkBorrowed"),
+
+    selPreviewRange: el("selPreviewRange"),
+    chkLoop: el("chkLoop"),
+
+    selTemplate: el("selTemplate"),
+    btnApplyTemplate: el("btnApplyTemplate"),
+    btnRandomize: el("btnRandomize"),
+
+    progGrid: el("progGrid"),
+    badgeProg: el("badgeProg"),
+
+    btnExport: el("btnExport"),
+    btnPreview: el("btnPreview"),
+    btnStop: el("btnStop"),
+
+    status: el("status"),
+
+    modalWrap: el("modalWrap"),
+    modalTitle: el("modalTitle"),
+    modalBarInfo: el("modalBarInfo"),
+    modalKeyInfo: el("modalKeyInfo"),
+    degreeGrid: el("degreeGrid"),
+    borrowHint: el("borrowHint"),
+    btnCloseModal: el("btnCloseModal"),
+  };
+
+  const templates = [
+    { name:"I V vi IV", seq:["I","V","vi","IV"] },
+    { name:"vi IV I V", seq:["vi","IV","I","V"] },
+    { name:"ii V I (jazz cadence)", seq:["ii","V","I","I"] },
+    { name:"i VI III VII (minor)", seq:["i","VI","III","VII"] },
+    { name:"I vi IV V (50s)", seq:["I","vi","IV","V"] },
+    { name:"I IV V I", seq:["I","IV","V","I"] },
+    { name:"i iv v i", seq:["i","iv","v","i"] },
+  ];
+
+  function romanToDegree(roman){
+    const r = roman.replace(/[^\w]/g,"");
+    const map = { I:1, II:2, III:3, IV:4, V:5, VI:6, VII:7 };
+    return map[r.toUpperCase()] || 1;
+  }
+
+  const state = {
+    keyName: "C",
+    scaleType: "major",
+    len: 8,
+    timeSig: "4/4",
+    bpm: 100,
+    chordStyle: "triad",
+    invPref: "off",
+    voicePref: "smooth",
+    rhythm: "block",
+    velMode: "med",
+    humanize: false,
+    bassMode: "off",
+    borrowedEnabled: false,
+    previewRange: "mid", // bass | mid | high
+    loopPreview: true,
+    progression: [],
+    borrowedCache: [],
+  };
+
+  function initTemplates(){
+    ui.selTemplate.innerHTML = templates.map((t,i)=>`<option value="${i}">${t.name}</option>`).join("");
+  }
+
+  function makeBorrowedCache(){
+    if(!state.borrowedEnabled){
+      state.borrowedCache = [];
+      return;
+    }
+    const opts = buildBorrowedOptions(state.keyName, state.scaleType);
+    opts.forEach((c, idx) => c._id = `b${idx}_${c.roman}_${c.name}`);
+    state.borrowedCache = opts;
+  }
+
+  function ensureProgressionLen(){
+    const n = state.len;
+    if(state.progression.length === n) return;
+    if(state.progression.length < n){
+      while(state.progression.length < n){
+        state.progression.push({ kind:"diatonic", deg: 1, _extras:null });
+      }
+    } else {
+      state.progression.length = n;
+    }
+  }
+
+  function scaleSummary(){
+    return `${state.keyName} ${state.scaleType.replace(/_/g," ")}`;
+  }
+
+  function renderScale(){
+    const scale = buildScaleSpelling(state.keyName, state.scaleType);
+    ui.scaleNotes.innerHTML = "";
+    scale.notes.forEach((n, i) => {
+      const chip = document.createElement("span");
+      chip.className = "chip" + (i===0 ? " accent" : "");
+      chip.textContent = n;
+      ui.scaleNotes.appendChild(chip);
+    });
+    ui.badgeScale.textContent = scaleSummary();
+  }
+
+  function chordForSlot(slot){
+    const scale = buildScaleSpelling(state.keyName, state.scaleType);
+    const style = (state.chordStyle === "7th") ? "7th" : "triad";
+    const diatonic = Array.from({length:7}, (_,i)=> buildDiatonicChord(scale, i+1, style));
+    if(slot.kind === "diatonic") return diatonic[slot.deg - 1];
+    if(slot.kind === "borrowed"){
+      return state.borrowedCache.find(x => x._id === slot.id) || diatonic[0];
+    }
+    return diatonic[0];
+  }
+
+  function renderProgression(){
+    ensureProgressionLen();
+    ui.badgeProg.textContent = `${state.len} bars`;
+    ui.progGrid.innerHTML = "";
+
+    for(let i=0;i<state.progression.length;i++){
+      const slot = state.progression[i];
+      const chord = chordForSlot(slot);
+      let roman = chord.roman;
+      let name = chord.name;
+
+      if(state.chordStyle === "pop" && slot._extras && slot._extras.sus){
+        const rootName = chord.name.replace(/(m|dim|aug|maj7|m7b5|dim7|m7|7|7#5).*/,"");
+        name = rootName + slot._extras.sus;
+      }
+
+      const card = document.createElement("div");
+      card.className = "barCard";
+      card.dataset.index = String(i);
+
+      const top = document.createElement("div");
+      top.className = "barTop";
+      const bn = document.createElement("div");
+      bn.className = "barNum";
+      bn.textContent = `Bar ${i+1}`;
+      const rm = document.createElement("div");
+      rm.className = "roman";
+      rm.textContent = roman;
+      top.appendChild(bn); top.appendChild(rm);
+
+      const nm = document.createElement("div");
+      nm.className = "chordName";
+      nm.textContent = name;
+
+      const sub = document.createElement("div");
+      sub.className = "chordSub";
+
+      const spelled = document.createElement("span");
+      spelled.className = "tiny";
+      spelled.textContent = `${roman} = ${name}`;
+      sub.appendChild(spelled);
+
+      if(state.chordStyle === "7th"){
+        const t = document.createElement("span");
+        t.className = "tiny good";
+        t.textContent = "7ths";
+        sub.appendChild(t);
+      } else if(state.chordStyle === "pop"){
+        const t = document.createElement("span");
+        t.className = "tiny";
+        t.textContent = "pop";
+        sub.appendChild(t);
+      }
+
+      if(chord.borrowed){
+        const t = document.createElement("span");
+        t.className = "tiny warn";
+        t.textContent = "borrowed";
+        sub.appendChild(t);
+      }
+
+      card.appendChild(top);
+      card.appendChild(nm);
+      card.appendChild(sub);
+
+      card.addEventListener("click", () => openEditModal(i));
+      ui.progGrid.appendChild(card);
+    }
+  }
+
+  function setStatus(msg){ ui.status.innerHTML = msg; }
+
+  // Modal editing
+  let editingIndex = -1;
+
+  function openEditModal(idx){
+    editingIndex = idx;
+    ui.modalTitle.textContent = `Edit Bar ${idx+1}`;
+    ui.modalBarInfo.textContent = `Bar ${idx+1} of ${state.len}`;
+    ui.modalKeyInfo.textContent = scaleSummary();
+
+    ui.degreeGrid.innerHTML = "";
+
+    const scale = buildScaleSpelling(state.keyName, state.scaleType);
+    const style = (state.chordStyle === "7th") ? "7th" : "triad";
+    const diatonic = Array.from({length:7}, (_,i)=> buildDiatonicChord(scale, i+1, style));
+
+    function addBtn(ch, kind, id=null){
+      const b = document.createElement("button");
+      b.type = "button";
+      b.className = "degBtn" + (ch.borrowed ? " borrowed" : "");
+      b.innerHTML = `<div class="r">${ch.roman}</div><div class="n">${ch.name}</div>`;
+      b.addEventListener("click", () => {
+        const s = state.progression[editingIndex];
+        s.kind = kind;
+        if(kind === "diatonic"){
+          s.deg = ch.deg;
+          delete s.id;
+        } else {
+          s.id = id;
+          delete s.deg;
+        }
+        s._extras = null;
+        closeModal();
+        renderProgression();
+      });
+      ui.degreeGrid.appendChild(b);
+    }
+
+    for(const ch of diatonic) addBtn(ch, "diatonic");
+
+    if(state.borrowedEnabled && state.borrowedCache.length){
+      for(const ch of state.borrowedCache) addBtn(ch, "borrowed", ch._id);
+      ui.borrowHint.textContent = "Borrowed chords are a small, common set (modal interchange). They export as-is and are labeled in the UI.";
+    } else {
+      ui.borrowHint.textContent = "Enable “Borrowed chords” in Setup if you want a small set of modal interchange options.";
+    }
+
+    ui.modalWrap.style.display = "flex";
+    ui.modalWrap.setAttribute("aria-hidden","false");
+  }
+
+  function closeModal(){
+    ui.modalWrap.style.display = "none";
+    ui.modalWrap.setAttribute("aria-hidden","true");
+    editingIndex = -1;
+  }
+
+  ui.btnCloseModal.addEventListener("click", closeModal);
+  ui.modalWrap.addEventListener("click", (e)=>{ if(e.target === ui.modalWrap) closeModal(); });
+  window.addEventListener("keydown", (e)=>{ if(e.key === "Escape") closeModal(); });
+
+  // Progression generation
+  function applyTemplate(templateIdx){
+    ensureProgressionLen();
+    const t = templates[templateIdx];
+    if(!t) return;
+    const seq = t.seq.map(roman => romanToDegree(roman));
+    for(let i=0;i<state.progression.length;i++){
+      state.progression[i].kind = "diatonic";
+      state.progression[i].deg = seq[i % seq.length];
+      delete state.progression[i].id;
+      state.progression[i]._extras = null;
+    }
+  }
+
+  function randomizeProgression(){
+    ensureProgressionLen();
+    const seedDegs = [1,4,5,6,2,3];
+    const allowBorrow = state.borrowedEnabled && state.borrowedCache.length;
+    for(let i=0;i<state.progression.length;i++){
+      const roll = Math.random();
+      if(allowBorrow && roll < 0.14){
+        const b = state.borrowedCache[Math.floor(Math.random() * state.borrowedCache.length)];
+        state.progression[i].kind = "borrowed";
+        state.progression[i].id = b._id;
+        delete state.progression[i].deg;
+      } else {
+        const deg = seedDegs[Math.floor(Math.random()*seedDegs.length)];
+        state.progression[i].kind = "diatonic";
+        state.progression[i].deg = deg;
+        delete state.progression[i].id;
+      }
+      state.progression[i]._extras = null;
+    }
+    if(state.progression.length){
+      state.progression[state.progression.length-1].kind = "diatonic";
+      state.progression[state.progression.length-1].deg = 1;
+      delete state.progression[state.progression.length-1].id;
+    }
+  }
+
+  // Export + Preview
+  function buildExportState(){
+    return {
+      keyName: state.keyName,
+      scaleType: state.scaleType,
+      chordStyle: state.chordStyle,
+      invPref: state.invPref,
+      voicePref: state.voicePref,
+      rhythm: state.rhythm,
+      velMode: state.velMode,
+      humanize: state.humanize,
+      bassMode: state.bassMode,
+      borrowedEnabled: state.borrowedEnabled,
+      timeSig: state.timeSig,
+      bpm: state.bpm,
+      progression: state.progression.map(s => ({...s}))
+    };
+  }
+
+  function exportMidi(){
+    makeBorrowedCache();
+    const s = buildExportState();
+    const events = buildPlaybackEvents(s, { previewOffsetSemis: 0 }); // export uses musical register (no preview offset)
+    const midi = buildMidiFile({ bpm: s.bpm, timeSig: s.timeSig, events });
+
+    const blob = new Blob([midi], {type: "audio/midi"});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    const safeKey = s.keyName.replace("#","sharp");
+    const safeScale = s.scaleType.replace(/_/g,"-");
+    a.href = url;
+    a.download = `piano_${safeKey}_${safeScale}_${s.timeSig.replace("/","-")}_${s.bpm}bpm.mid`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 8000);
+
+    setStatus(`<b>Exported:</b> ${a.download} · Track name <span class="chip accent">Piano</span> · PPQ 480 · Type 0`);
+  }
+
+  // WebAudio preview
+  let audioCtx = null;
+  let playing = false;
+  let scheduled = [];
+  let stopTimer = null;
+
+  function midiNoteToFreq(n){
+    return 440 * Math.pow(2, (n - 69) / 12);
+  }
+
+  function ensureAudio(){
+    if(!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    return audioCtx;
+  }
+
+  function clearScheduled(){
+    for(const node of scheduled){
+      try{ node.stop(0); }catch(_){}
+      try{ node.disconnect(); }catch(_){}
+    }
+    scheduled = [];
+    if(stopTimer){ clearTimeout(stopTimer); stopTimer = null; }
+  }
+
+  function stopPreview(){
+    playing = false;
+    ui.btnStop.disabled = true;
+    ui.btnPreview.disabled = false;
+    clearScheduled();
+    setStatus(`<b>Stopped.</b>`);
+  }
+
+  function previewOffsetSemisFromUI(){
+    // bass: no offset, mid: +12, high: +24
+    if(state.previewRange === "bass") return 0;
+    if(state.previewRange === "high") return 24;
+    return 12; // "mid" default: lift one octave so it's clearly audible
+  }
+
+  function previewOnce(){
+    makeBorrowedCache();
+    const s = buildExportState();
+    const offset = previewOffsetSemisFromUI();
+    const events = buildPlaybackEvents(s, { previewOffsetSemis: offset });
+
+    const ctx = ensureAudio();
+    const now = ctx.currentTime + 0.06;
+
+    const mpq = 60000000 / Math.max(1, s.bpm);
+    const secPerTick = (mpq / 1000000) / PPQ;
+
+    const active = new Map();
+    const noteSegments = [];
+
+    const sorted = events.slice().sort((a,b)=>a.tick-b.tick || (a.type==="off") - (b.type==="off"));
+    for(const ev of sorted){
+      if(ev.type === "on"){
+        active.set(ev.note, { t: ev.tick, vel: ev.vel });
+      } else if(ev.type === "off"){
+        const on = active.get(ev.note);
+        if(on){
+          noteSegments.push({ note: ev.note, t0: on.t, t1: ev.tick, vel: on.vel });
+          active.delete(ev.note);
+        }
+      }
+    }
+
+    function scheduleNote(seg){
+      const t0 = now + seg.t0 * secPerTick;
+      const t1 = now + seg.t1 * secPerTick;
+
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      const filter = ctx.createBiquadFilter();
+
+      osc.type = "sine";
+      osc.frequency.setValueAtTime(midiNoteToFreq(seg.note), t0);
+
+      filter.type = "lowpass";
+      filter.frequency.setValueAtTime(3200, t0);
+      filter.Q.setValueAtTime(0.7, t0);
+
+      const v = clamp(seg.vel / 127, 0, 1);
+      const peak = 0.20 * v;     // slightly louder for audibility
+      const sustain = 0.055 * v;
+
+      gain.gain.setValueAtTime(0.00001, t0);
+      gain.gain.linearRampToValueAtTime(peak, t0 + 0.008);
+      gain.gain.exponentialRampToValueAtTime(sustain + 0.00001, t0 + 0.11);
+      gain.gain.setValueAtTime(sustain + 0.00001, Math.max(t0 + 0.12, t1 - 0.02));
+      gain.gain.exponentialRampToValueAtTime(0.00001, t1 + 0.06);
+
+      osc.connect(filter);
+      filter.connect(gain);
+      gain.connect(ctx.destination);
+
+      osc.start(t0);
+      osc.stop(t1 + 0.08);
+      scheduled.push(osc, gain, filter);
+    }
+
+    for(const seg of noteSegments) scheduleNote(seg);
+
+    const totalTicks = state.len * barTicks(state.timeSig);
+    const totalSec = totalTicks * secPerTick;
+    return { totalSec };
+  }
+
+  function startPreview(){
+    if(playing) return;
+    playing = true;
+    ui.btnStop.disabled = false;
+    ui.btnPreview.disabled = true;
+
+    clearScheduled();
+    const first = previewOnce();
+
+    setStatus(`<b>Previewing…</b> ${scaleSummary()} · ${state.len} bars · ${state.timeSig} · ${state.bpm} BPM · Range: <span class="chip accent">${state.previewRange}</span> · Loop: <span class="chip accent">${state.loopPreview ? "ON" : "OFF"}</span>`);
+
+    stopTimer = setTimeout(() => {
+      if(!playing) return;
+      if(state.loopPreview){
+        (function pulse(){
+          if(!playing) return;
+          clearScheduled();
+          const { totalSec: dur } = previewOnce();
+          stopTimer = setTimeout(() => {
+            if(!playing) return;
+            if(state.loopPreview) pulse();
+            else stopPreview();
+          }, dur * 1000 + 60);
+        })();
+      } else {
+        stopPreview();
+      }
+    }, first.totalSec * 1000 + 60);
+  }
+
+  // Wiring
+  function syncFromUI(){
+    state.keyName = ui.selKey.value;
+    state.scaleType = ui.selScale.value;
+    state.len = parseInt(ui.selLen.value, 10);
+    state.timeSig = ui.selTS.value;
+    state.bpm = clamp(parseInt(ui.numBpm.value, 10) || 100, 40, 240);
+
+    state.chordStyle = ui.selChordStyle.value;
+    state.invPref = ui.selInv.value;
+    state.voicePref = ui.selVoice.value;
+    state.rhythm = ui.selRhythm.value;
+    state.velMode = ui.selVel.value;
+    state.humanize = ui.chkHuman.checked;
+    state.bassMode = ui.selBass.value;
+    state.borrowedEnabled = ui.chkBorrowed.checked;
+
+    state.previewRange = ui.selPreviewRange.value;
+    state.loopPreview = ui.chkLoop.checked;
+
+    makeBorrowedCache();
+    ensureProgressionLen();
+  }
+
+  function refreshAll(){
+    syncFromUI();
+    renderScale();
+    renderProgression();
+    ui.badgeProg.textContent = `${state.len} bars`;
+    ui.numBpm.value = String(state.bpm);
+
+    const borrowedLine = state.borrowedEnabled
+      ? `Borrowed chords: <span class="chip borrowed">ON</span>.`
+      : `Borrowed chords: <span class="chip">OFF</span>.`;
+    setStatus(`<b>Ready.</b> ${borrowedLine} Preview range set to <span class="chip accent">${state.previewRange}</span>. Tap a bar to edit its chord.`);
+  }
+
+  [
+    ui.selKey, ui.selScale, ui.selLen, ui.selTS, ui.numBpm,
+    ui.selChordStyle, ui.selInv, ui.selVoice, ui.selRhythm,
+    ui.selVel, ui.chkHuman, ui.selBass, ui.chkBorrowed,
+    ui.selPreviewRange, ui.chkLoop
+  ].forEach(node => {
+    node.addEventListener("change", () => refreshAll());
+    node.addEventListener("input", () => { if(node === ui.numBpm) refreshAll(); });
+  });
+
+  ui.btnApplyTemplate.addEventListener("click", () => {
+    syncFromUI();
+    applyTemplate(parseInt(ui.selTemplate.value, 10) || 0);
+    renderProgression();
+    setStatus(`<b>Template applied:</b> ${templates[parseInt(ui.selTemplate.value, 10) || 0].name}`);
+  });
+
+  ui.btnRandomize.addEventListener("click", () => {
+    syncFromUI();
+    randomizeProgression();
+    renderProgression();
+    setStatus(`<b>Randomized.</b> Tap any bar to tweak.`);
+  });
+
+  ui.btnExport.addEventListener("click", () => {
+    try{
+      syncFromUI();
+      exportMidi();
+    } catch(err){
+      console.error(err);
+      setStatus(`<b style="color:#ffd2d9">Export failed:</b> ${String(err.message || err)}`);
+    }
+  });
+
+  ui.btnPreview.addEventListener("click", async () => {
+    try{
+      syncFromUI();
+      const ctx = ensureAudio();
+      if(ctx.state === "suspended") await ctx.resume();
+      startPreview();
+    } catch(err){
+      console.error(err);
+      setStatus(`<b style="color:#ffd2d9">Preview failed:</b> ${String(err.message || err)}`);
+    }
+  });
+
+  ui.btnStop.addEventListener("click", () => stopPreview());
+
+  document.addEventListener("visibilitychange", () => {
+    if(document.hidden && playing) stopPreview();
+  });
+
+  // Boot
+  function boot(){
+    initTemplates();
+    state.progression = [];
+    syncFromUI();
+    applyTemplate(0);
+    refreshAll();
+  }
+  boot();
+})();
+</script>
+</body>
+</html>
