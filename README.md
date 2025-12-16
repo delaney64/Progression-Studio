@@ -43,16 +43,16 @@ git clone https://github.com/delaneyd/Progression-Studio.git
 cd Progression-Studio
 ```
 
-2. Open `ProgStudio.html` in a modern web browser:
+2. Open `index.html` in a modern web browser:
 ```bash
 # Windows
-start ProgStudio.html
+start index.html
 
 # macOS
-open ProgStudio.html
+open index.html
 
 # Linux
-xdg-open ProgStudio.html
+xdg-open index.html
 ```
 
 No build process or dependencies required!
@@ -68,7 +68,7 @@ python -m http.server 8000
 npx http-server
 ```
 
-Then navigate to `http://localhost:8000/ProgStudio.html`
+Then navigate to `http://localhost:8000`
 
 ## Usage Guide
 
@@ -140,7 +140,7 @@ Requires WebAudio API support for playback preview.
 
 ```
 Progression-Studio/
-├── ProgStudio.html          # Complete application (HTML, CSS, JS)
+├── index.html               # Complete application (HTML, CSS, JS)
 ├── README.md                # This file
 ├── LICENSE                  # MIT License
 └── CHANGELOG.md             # Version history
