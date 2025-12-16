@@ -1,4 +1,5 @@
 # Progression Studio
+https://delaney64.github.io/Progression-Studio/
 
 A browser-based MIDI chord progression builder with real-time audio preview and professional-grade export capabilities. Built with vanilla JavaScript for maximum compatibility and zero dependencies.
 
